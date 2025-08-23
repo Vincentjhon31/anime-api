@@ -1,0 +1,58 @@
+[
+  {
+    "id": "a1",
+    "title": "Sakamoto Days",
+    "year": 2020,
+    "genres": ["Action", "Comedy"],
+    "author": "Yuto Suzuki",
+    "studio": "TMS Entertainment"
+  },
+  {
+    "id": "a2",
+    "title": "One Piece",
+    "year": 1999,
+    "genres": ["Adventure", "Fantasy"],
+    "author": "Eiichiro Oda",
+    "studio": "Toei Animation"
+  },
+  {
+    "id": "a3",
+    "title": "That Time I Got Reincarnated as a Slime",
+    "year": 2018,
+    "genres": ["Fantasy", "Isekai"],
+    "author": "Fuse",
+    "studio": "8bit"
+  },
+  {
+    "id": "a4",
+    "title": "Demon Slayer: Kimetsu no Yaiba",
+    "year": 2019,
+    "genres": ["Action", "Supernatural"],
+    "author": "Koyoharu Gotouge",
+    "studio": "ufotable"
+  },
+  {
+    "id": "a5",
+    "title": "Mushoku Tensei: Jobless Reincarnation",
+    "year": 2021,
+    "genres": ["Fantasy", "Drama"],
+    "author": "Rifujin na Magonote",
+    "studio": "Studio Bind"
+  },
+  {
+    "id": "a6",
+    "title": "Dr. Stone",
+    "year": 2019,
+    "genres": ["Adventure", "Sci-Fi"],
+    "author": "Riichiro Inagaki (story), Boichi (art)",
+    "studio": "TMS Entertainment"
+  },
+  {
+    "id": "a7",
+    "title": "Sword Art Online",
+    "year": 2012,
+    "genres": ["Action", "Sci-Fi"],
+    "author": "Reki Kawahara",
+    "studio": "A-1 Pictures"
+  }
+]

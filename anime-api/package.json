@@ -1,0 +1,9 @@
+{
+  "name": "anime-api",
+  "version": "1.0.0",
+  "description": "Simple REST API in pure Node.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
