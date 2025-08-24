@@ -6,8 +6,8 @@
  *   GET    /health                     -> API status
  *   GET    /api/anime                  -> list (optional ?q=search)
  *   GET    /api/anime/:id              -> get one
- *   POST   /api/anime                  -> create { title, year?, genres?[] }
- *   PUT    /api/anime/:id              -> replace { title, year?, genres?[] }
+ *   POST   /api/anime                  -> create { title, year?, genres?[], author?, studio? }
+ *   PUT    /api/anime/:id              -> replace { title, year?, genres?[], author?, studio? }
  *   PATCH  /api/anime/:id              -> partial update
  *   DELETE /api/anime/:id              -> delete
  */
@@ -55,7 +55,6 @@ function notFound(res) {
 }
 
 function matchRoute(pathname, pattern) {
-  // pattern like /api/anime/:id
   const p = pattern.split("/").filter(Boolean);
   const a = pathname.split("/").filter(Boolean);
   if (p.length !== a.length) return null;
@@ -73,7 +72,6 @@ function parseBody(req) {
     req.on("data", (chunk) => {
       body += chunk;
       if (body.length > 1e6) {
-        // ~1MB limit
         req.destroy();
         reject(new Error("Body too large"));
       }
@@ -124,16 +122,20 @@ const server = http.createServer(async (req, res) => {
         send(res, 400, { error: err.message })
       );
       if (!body) return;
-      const { title, year, genres } = body;
+
+      const { title, year, genres, author, studio } = body; // NEW
       if (!title || typeof title !== "string" || !title.trim()) {
         return send(res, 400, { error: "title is required (string)" });
       }
+
       const list = await readData();
       const item = {
         id: randomUUID(),
         title: title.trim(),
         year: Number(year) || null,
         genres: Array.isArray(genres) ? genres : [],
+        author: author ? String(author).trim() : null, // NEW
+        studio: studio ? String(studio).trim() : null, // NEW
       };
       list.push(item);
       await saveData(list);
@@ -153,7 +155,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) return notFound(res);
 
       if (req.method === "PUT") {
-        const { title, year, genres } = body;
+        const { title, year, genres, author, studio } = body; // NEW
         if (!title || typeof title !== "string" || !title.trim()) {
           return send(res, 400, { error: "title is required (string)" });
         }
@@ -162,10 +164,13 @@ const server = http.createServer(async (req, res) => {
           title: title.trim(),
           year: Number(year) || null,
           genres: Array.isArray(genres) ? genres : [],
+          author: author ? String(author).trim() : null, // NEW
+          studio: studio ? String(studio).trim() : null, // NEW
         };
       } else {
         // PATCH - partial
         const obj = { ...list[idx] };
+
         if ("title" in body) {
           if (
             !body.title ||
@@ -184,6 +189,15 @@ const server = http.createServer(async (req, res) => {
             return send(res, 400, { error: "genres must be an array" });
           obj.genres = body.genres;
         }
+        if ("author" in body) {
+          // NEW
+          obj.author = body.author ? String(body.author).trim() : null;
+        }
+        if ("studio" in body) {
+          // NEW
+          obj.studio = body.studio ? String(body.studio).trim() : null;
+        }
+
         list[idx] = obj;
       }
 
