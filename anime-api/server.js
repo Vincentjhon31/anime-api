@@ -1,16 +1,6 @@
 "use strict";
 
-/**
- * Simple Anime REST API using only Node core modules.
- * Endpoints:
- *   GET    /health                     -> API status
- *   GET    /api/anime                  -> list (optional ?q=search)
- *   GET    /api/anime/:id              -> get one
- *   POST   /api/anime                  -> create { title, year?, genres?[], author?, studio? }
- *   PUT    /api/anime/:id              -> replace { title, year?, genres?[], author?, studio? }
- *   PATCH  /api/anime/:id              -> partial update
- *   DELETE /api/anime/:id              -> delete
- */
+
 
 const http = require("http");
 const url = require("url");
@@ -21,7 +11,6 @@ const { randomUUID } = require("crypto");
 const PORT = process.env.PORT || 3000;
 const DATA_FILE = path.join(__dirname, "data", "anime.json");
 
-// ---------- helpers ----------
 async function readData() {
   try {
     const txt = await fs.readFile(DATA_FILE, "utf8");
@@ -88,17 +77,16 @@ function parseBody(req) {
   });
 }
 
-// ---------- server ----------
 const server = http.createServer(async (req, res) => {
   const { pathname, query } = url.parse(req.url, true);
 
   try {
-    // Health check
+    
     if (req.method === "GET" && pathname === "/health") {
       return send(res, 200, { status: "ok" });
     }
 
-    // List all + search
+  
     if (req.method === "GET" && pathname === "/api/anime") {
       const list = await readData();
       const q = (query.q || "").toLowerCase().trim();
@@ -108,7 +96,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, filtered);
     }
 
-    // Get one
+
     let params = matchRoute(pathname, "/api/anime/:id");
     if (req.method === "GET" && params) {
       const list = await readData();
@@ -116,14 +104,14 @@ const server = http.createServer(async (req, res) => {
       return item ? send(res, 200, item) : notFound(res);
     }
 
-    // Create
+   
     if (req.method === "POST" && pathname === "/api/anime") {
       const body = await parseBody(req).catch((err) =>
         send(res, 400, { error: err.message })
       );
       if (!body) return;
 
-      const { title, year, genres, author, studio } = body; // NEW
+      const { title, year, genres, author, studio } = body;
       if (!title || typeof title !== "string" || !title.trim()) {
         return send(res, 400, { error: "title is required (string)" });
       }
@@ -134,15 +122,15 @@ const server = http.createServer(async (req, res) => {
         title: title.trim(),
         year: Number(year) || null,
         genres: Array.isArray(genres) ? genres : [],
-        author: author ? String(author).trim() : null, // NEW
-        studio: studio ? String(studio).trim() : null, // NEW
+        author: author ? String(author).trim() : null, 
+        studio: studio ? String(studio).trim() : null, 
       };
       list.push(item);
       await saveData(list);
       return send(res, 201, item, { Location: `/api/anime/${item.id}` });
     }
 
-    // Update (PUT/PATCH)
+   
     params = matchRoute(pathname, "/api/anime/:id");
     if ((req.method === "PUT" || req.method === "PATCH") && params) {
       const body = await parseBody(req).catch((err) =>
@@ -155,7 +143,7 @@ const server = http.createServer(async (req, res) => {
       if (idx === -1) return notFound(res);
 
       if (req.method === "PUT") {
-        const { title, year, genres, author, studio } = body; // NEW
+        const { title, year, genres, author, studio } = body; 
         if (!title || typeof title !== "string" || !title.trim()) {
           return send(res, 400, { error: "title is required (string)" });
         }
@@ -164,11 +152,11 @@ const server = http.createServer(async (req, res) => {
           title: title.trim(),
           year: Number(year) || null,
           genres: Array.isArray(genres) ? genres : [],
-          author: author ? String(author).trim() : null, // NEW
-          studio: studio ? String(studio).trim() : null, // NEW
+          author: author ? String(author).trim() : null, 
+          studio: studio ? String(studio).trim() : null, 
         };
       } else {
-        // PATCH - partial
+       
         const obj = { ...list[idx] };
 
         if ("title" in body) {
@@ -190,11 +178,11 @@ const server = http.createServer(async (req, res) => {
           obj.genres = body.genres;
         }
         if ("author" in body) {
-          // NEW
+          
           obj.author = body.author ? String(body.author).trim() : null;
         }
         if ("studio" in body) {
-          // NEW
+          
           obj.studio = body.studio ? String(body.studio).trim() : null;
         }
 
@@ -205,7 +193,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, list[idx]);
     }
 
-    // Delete
+   
     params = matchRoute(pathname, "/api/anime/:id");
     if (req.method === "DELETE" && params) {
       const list = await readData();
@@ -216,7 +204,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, removed);
     }
 
-    // Fallback
+    
     return notFound(res);
   } catch (err) {
     console.error(err);
@@ -227,3 +215,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Anime API listening on http://localhost:${PORT}`);
 });
+
