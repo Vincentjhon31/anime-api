@@ -1,218 +1,110 @@
-"use strict";
+const express = require("express");
+const mysql = require("mysql2/promise");
+const app = express();
+const PORT = 3000;
 
+app.use(express.json());
 
+const dbConfig = {
+  host: "localhost",
+  user: "root",
+  password: "",
+  database: "anime_db",
+};
 
-const http = require("http");
-const url = require("url");
-const fs = require("fs").promises;
-const path = require("path");
-const { randomUUID } = require("crypto");
-
-const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, "data", "anime.json");
-
-async function readData() {
-  try {
-    const txt = await fs.readFile(DATA_FILE, "utf8");
-    return JSON.parse(txt);
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      await saveData([]);
-      return [];
-    }
-    throw err;
-  }
+async function query(sql, params) {
+  const conn = await mysql.createConnection(dbConfig);
+  const [results] = await conn.execute(sql, params);
+  await conn.end();
+  return results;
 }
 
-async function saveData(data) {
-  await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2));
-}
+// Sjhow All Anime
+app.get("/anime", async (req, res) => {
+  const data = await query("SELECT * FROM anime");
+  data.forEach((a) => (a.genres = JSON.parse(a.genres)));
+  res.json(data);
+});
 
-function send(res, status, data, headers = {}) {
-  const body = JSON.stringify(data);
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Content-Length": Buffer.byteLength(body),
-    ...headers,
-  });
-  res.end(body);
-}
+// Show id
+app.get("/anime/:id", async (req, res) => {
+  const [row] = await query("SELECT * FROM anime WHERE id = ?", [
+    req.params.id,
+  ]);
+  if (!row) return res.status(404).json({ error: "Not found" });
+  row.genres = JSON.parse(row.genres);
+  res.json(row);
+});
 
-function notFound(res) {
-  send(res, 404, { error: "Not found" });
-}
+// Create
+app.post("/anime", async (req, res) => {
+  const { id, title, year, genres, author, studio } = req.body;
+  await query(
+    "INSERT INTO anime (id, title, year, genres, author, studio) VALUES (?, ?, ?, ?, ?, ?)",
+    [id, title, year, JSON.stringify(genres), author, studio]
+  );
+  res.status(201).json(req.body);
+});
 
-function matchRoute(pathname, pattern) {
-  const p = pattern.split("/").filter(Boolean);
-  const a = pathname.split("/").filter(Boolean);
-  if (p.length !== a.length) return null;
-  const params = {};
-  for (let i = 0; i < p.length; i++) {
-    if (p[i].startsWith(":")) params[p[i].slice(1)] = decodeURIComponent(a[i]);
-    else if (p[i] !== a[i]) return null;
-  }
-  return params;
-}
+// Update (PUT)
+app.put("/anime/:id", async (req, res) => {
+  const { title, year, genres, author, studio } = req.body;
+  await query(
+    `UPDATE anime SET title=?, year=?, genres=?, author=?, studio=? WHERE id=?`,
+    [title, year, JSON.stringify(genres), author, studio, req.params.id]
+  );
+  res.json(req.body);
+});
 
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk;
-      if (body.length > 1e6) {
-        req.destroy();
-        reject(new Error("Body too large"));
-      }
-    });
-    req.on("end", () => {
-      if (!body) return resolve(null);
-      try {
-        resolve(JSON.parse(body));
-      } catch {
-        reject(new Error("Invalid JSON"));
-      }
-    });
-    req.on("error", reject);
-  });
-}
-
-const server = http.createServer(async (req, res) => {
-  const { pathname, query } = url.parse(req.url, true);
-
-  try {
-    
-    if (req.method === "GET" && pathname === "/health") {
-      return send(res, 200, { status: "ok" });
-    }
+// Update Patch (some only)
+app.patch("/anime/:id", async (req, res) => {
+  const fields = [];
+  const values = [];
 
   
-    if (req.method === "GET" && pathname === "/api/anime") {
-      const list = await readData();
-      const q = (query.q || "").toLowerCase().trim();
-      const filtered = q
-        ? list.filter((a) => a.title.toLowerCase().includes(q))
-        : list;
-      return send(res, 200, filtered);
-    }
-
-
-    let params = matchRoute(pathname, "/api/anime/:id");
-    if (req.method === "GET" && params) {
-      const list = await readData();
-      const item = list.find((a) => a.id === params.id);
-      return item ? send(res, 200, item) : notFound(res);
-    }
-
-   
-    if (req.method === "POST" && pathname === "/api/anime") {
-      const body = await parseBody(req).catch((err) =>
-        send(res, 400, { error: err.message })
-      );
-      if (!body) return;
-
-      const { title, year, genres, author, studio } = body;
-      if (!title || typeof title !== "string" || !title.trim()) {
-        return send(res, 400, { error: "title is required (string)" });
-      }
-
-      const list = await readData();
-      const item = {
-        id: randomUUID(),
-        title: title.trim(),
-        year: Number(year) || null,
-        genres: Array.isArray(genres) ? genres : [],
-        author: author ? String(author).trim() : null, 
-        studio: studio ? String(studio).trim() : null, 
-      };
-      list.push(item);
-      await saveData(list);
-      return send(res, 201, item, { Location: `/api/anime/${item.id}` });
-    }
-
-   
-    params = matchRoute(pathname, "/api/anime/:id");
-    if ((req.method === "PUT" || req.method === "PATCH") && params) {
-      const body = await parseBody(req).catch((err) =>
-        send(res, 400, { error: err.message })
-      );
-      if (!body) return;
-
-      const list = await readData();
-      const idx = list.findIndex((a) => a.id === params.id);
-      if (idx === -1) return notFound(res);
-
-      if (req.method === "PUT") {
-        const { title, year, genres, author, studio } = body; 
-        if (!title || typeof title !== "string" || !title.trim()) {
-          return send(res, 400, { error: "title is required (string)" });
-        }
-        list[idx] = {
-          id: params.id,
-          title: title.trim(),
-          year: Number(year) || null,
-          genres: Array.isArray(genres) ? genres : [],
-          author: author ? String(author).trim() : null, 
-          studio: studio ? String(studio).trim() : null, 
-        };
-      } else {
-       
-        const obj = { ...list[idx] };
-
-        if ("title" in body) {
-          if (
-            !body.title ||
-            typeof body.title !== "string" ||
-            !body.title.trim()
-          ) {
-            return send(res, 400, {
-              error: "title (if provided) must be a non-empty string",
-            });
-          }
-          obj.title = body.title.trim();
-        }
-        if ("year" in body) obj.year = Number(body.year) || null;
-        if ("genres" in body) {
-          if (!Array.isArray(body.genres))
-            return send(res, 400, { error: "genres must be an array" });
-          obj.genres = body.genres;
-        }
-        if ("author" in body) {
-          
-          obj.author = body.author ? String(body.author).trim() : null;
-        }
-        if ("studio" in body) {
-          
-          obj.studio = body.studio ? String(body.studio).trim() : null;
-        }
-
-        list[idx] = obj;
-      }
-
-      await saveData(list);
-      return send(res, 200, list[idx]);
-    }
-
-   
-    params = matchRoute(pathname, "/api/anime/:id");
-    if (req.method === "DELETE" && params) {
-      const list = await readData();
-      const idx = list.findIndex((a) => a.id === params.id);
-      if (idx === -1) return notFound(res);
-      const [removed] = list.splice(idx, 1);
-      await saveData(list);
-      return send(res, 200, removed);
-    }
-
-    
-    return notFound(res);
-  } catch (err) {
-    console.error(err);
-    return send(res, 500, { error: "Internal server error" });
+  if (req.body.title) {
+    fields.push("title=?");
+    values.push(req.body.title);
   }
+  if (req.body.year) {
+    fields.push("year=?");
+    values.push(req.body.year);
+  }
+  if (req.body.genres) {
+    fields.push("genres=?");
+    values.push(JSON.stringify(req.body.genres));
+  }
+  if (req.body.author) {
+    fields.push("author=?");
+    values.push(req.body.author);
+  }
+  if (req.body.studio) {
+    fields.push("studio=?");
+    values.push(req.body.studio);
+  }
+
+  if (fields.length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
+  
+  values.push(req.params.id);
+
+  await query(
+    `UPDATE anime SET ${fields.join(", ")} WHERE id=?`,
+    values
+  );
+
+  res.json({ message: "Anime updated successfully", updated: req.body });
 });
 
-server.listen(PORT, () => {
-  console.log(`Anime API listening on http://localhost:${PORT}`);
+
+// Delete
+app.delete("/anime/:id", async (req, res) => {
+  await query("DELETE FROM anime WHERE id = ?", [req.params.id]);
+  res.json({ message: "Deleted" });
 });
 
+app.listen(PORT, () =>
+  console.log(`Server running at http://localhost:${PORT}`)
+);
